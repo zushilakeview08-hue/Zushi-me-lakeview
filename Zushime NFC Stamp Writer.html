@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Zushime NFC Stamp Writer</title>
+<style>
+:root{--bg:#141414;--gold:#c9971c;--cream:#ffe9a8;--red:#e11d48;--ink:#f6f1e4;--mute:#a89f86;--ok:#4cc196}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:20px;color:var(--cream);letter-spacing:.06em;margin:4px 0}
+.sub{color:var(--mute);font-size:13px;margin:0 0 14px}
+.card{border:2px solid var(--gold);border-radius:20px;padding:16px;margin-bottom:14px;background:rgba(0,0,0,.25)}
+label{display:block;font-size:12px;color:var(--gold);font-weight:800;letter-spacing:.1em;margin:0 0 6px}
+input[type=text]{width:100%;padding:12px;border-radius:12px;border:1px solid #444;background:#111;color:var(--ink);font:inherit;font-size:14px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:12px 0 0;font-size:13px;color:var(--cream)}
+.chk input{margin-top:3px;width:18px;height:18px}
+button{width:100%;margin-top:14px;padding:16px;border:0;border-radius:14px;background:var(--red);color:#fff;font:800 16px/1 inherit;cursor:pointer}
+button.g{background:#2c2c2c;color:var(--ink);border:1px solid #555}
+button:disabled{background:#3a3a3a;color:#8d8d8d}
+.msg{min-height:44px;margin:12px 0 0;font-size:14px;color:var(--mute);text-align:center}
+.msg.ok{color:var(--ok);font-weight:700}.msg.err{color:#ff7a8d;font-weight:700}
+.n{text-align:center;font-size:34px;font-weight:800;color:var(--cream)}
+ol{margin:0;padding-left:20px;font-size:13px;color:var(--cream)}ol li{margin:4px 0}
+code{background:#222;padding:2px 6px;border-radius:6px;font-size:12px;word-break:break-all}
+.warn{font-size:12px;color:var(--mute)}
+</style></head><body><main>
+<h1>ZUSHIME NFC STAMP WRITER</h1>
+<p class="sub">Staff tool. Writes the stamp link onto an NFC sticker so a tap opens the loyalty card and adds today's stamp.</p>
+
+<div class="card">
+<label for="u">STAMP LINK (written to sticker)</label>
+<input type="text" id="u" value="https://claude.ai/artifact/NxgHbBNFt5XJF1wRA1jfow#stamp" autocapitalize="off" autocomplete="off" spellcheck="false">
+<p class="warn">The link must end in <code>#stamp</code>. If you later move the card to your own domain, change it here and rewrite the stickers.</p>
+<div class="chk"><input type="checkbox" id="lock"><label for="lock" style="margin:0;color:var(--cream);font-weight:400;letter-spacing:0;font-size:13px">Lock sticker after writing (permanent, cannot be edited again). Tick only for final stickers.</label></div>
+<button id="w">WRITE STICKER</button>
+<button class="g" id="v">VERIFY / READ STICKER</button>
+<p class="msg" id="m" role="status" aria-live="polite">Open this file in Chrome on an Android phone with NFC on.</p>
+<div class="n" id="c">0</div><p class="sub" style="text-align:center;margin:0">stickers written this session</p>
+</div>
+
+<div class="card">
+<label>HOW TO USE</label>
+<ol>
+<li>Open this file in <b>Chrome for Android</b> (NFC turned on). It must be served over https, or use the NFC Tools fallback below.</li>
+<li>Tap <b>Write sticker</b>, then hold the phone against a blank NFC sticker until it confirms.</li>
+<li>Tap <b>Verify</b> and test with a customer phone: iPhone opens the link on tap, Android opens it too.</li>
+<li>Stick it on the table or counter, clear of metal (use on-metal stickers if needed).</li>
+</ol>
+</div>
+
+<div class="card">
+<label>FALLBACK: NFC TOOLS APP (ANDROID / iPHONE)</label>
+<ol>
+<li>Install <b>NFC Tools</b> (free).</li>
+<li>Write &gt; Add a record &gt; <b>URL / URI</b>.</li>
+<li>Paste the stamp link above, tap OK, then Write and hold near the sticker.</li>
+</ol>
+<p class="warn">Sticker spec: NTAG213 / 215 / 216, NDEF formatted, ISO 14443A. The record is one NDEF URL record, about 60 bytes.</p>
+</div>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)},n=0;
+function say(t,c){var m=$("m");m.textContent=t;m.className="msg "+(c||"")}
+function url(){var u=$("u").value.trim();return u}
+function valid(u){try{var x=new URL(u);return x.protocol==="https:"&&x.hash==="#stamp"}catch(e){return false}}
+function ok(){if(!("NDEFReader" in window)){say("Web NFC isn't available here. Use Chrome on Android over https, or the NFC Tools fallback below.","err");return false}return true}
+$("w").onclick=async function(){
+  var u=url();if(!valid(u)){say("The link must be https and end with #stamp.","err");return}
+  if(!ok())return;
+  try{
+    var rd=new NDEFReader();say("Hold the phone against the sticker…");
+    await rd.write({records:[{recordType:"url",data:u}]},{overwrite:true});
+    if($("lock").checked){
+      if(typeof rd.makeReadOnly==="function"){await rd.makeReadOnly();say("Written and locked ✓","ok")}
+      else say("Written ✓ (this browser can't lock stickers).","ok")
+    }else say("Written ✓ Verify it, then do the next sticker.","ok");
+    n++;$("c").textContent=n;
+  }catch(e){say("Could not write: "+(e&&e.message?e.message:"try again")+". Check NFC is on and hold steady.","err")}
+};
+$("v").onclick=async function(){
+  if(!ok())return;
+  try{
+    var rd=new NDEFReader(),ctl=new AbortController();await rd.scan({signal:ctl.signal});say("Ready. Hold the phone near the sticker…");
+    rd.onreadingerror=function(){say("Could not read that sticker.","err")};
+    rd.onreading=function(ev){ctl.abort();var found="";
+      ev.message.records.forEach(function(r){try{found=new TextDecoder(r.encoding||"utf-8").decode(r.data)}catch(e){}});
+      found&&/#stamp$/.test(found)?say("OK ✓ "+found,"ok"):say(found?"Wrong content: "+found:"Sticker is empty.","err")};
+  }catch(e){say("NFC is off or blocked. Turn it on and allow access.","err")}
+};
+})();
+</script></main></body></html>
